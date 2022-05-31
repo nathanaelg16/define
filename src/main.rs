@@ -6,6 +6,7 @@ use serde::Serialize;
 use std::collections::HashMap;
 use std::env;
 use std::result::Result;
+use substring::Substring;
 use text_colorizer::*;
 
 const API_URL: &str = "http://api.wordnik.com/v4/word.json";
@@ -46,19 +47,20 @@ fn pronunciations(
             ("typeFormat", type_format),
         ])
         .query(&[("limit", limit)])
-        .send() {
-            Ok(response) => {
-                return Some(
-                   strip_quotes( response
+        .send()
+    {
+        Ok(response) => {
+            return Some(strip_quotes(
+                response
                     .json::<serde_json::Value>()
                     .unwrap()
                     .as_array()
                     .unwrap()[0]["raw"]
-                    .to_string())
-                )
-            }
-            Err(_) => return None
-        };
+                    .to_string(),
+            ))
+        }
+        Err(_) => return None,
+    };
 }
 
 // Not currently working properly in API
@@ -105,7 +107,15 @@ fn define(
     };
     let res_arr = res.as_array().unwrap();
     let dictionary = String::from("ahd-5");
-    let pronunciation = pronunciations(&word, &use_canonical, &dictionary, &dictionary, &1, client, api_key);
+    let pronunciation = pronunciations(
+        &word,
+        &use_canonical,
+        &dictionary,
+        &dictionary,
+        &1,
+        client,
+        api_key,
+    );
 
     let mut definitions: HashMap<String, Vec<Definition>> = HashMap::new();
     for res in res_arr {
@@ -133,22 +143,43 @@ fn define(
         print!("{}", word.blue().bold());
         match &pronunciation {
             Some(value) => print!(" ({})\n\n", value.red()),
-            None => println!("\n")
+            None => println!("\n"),
         }
         for definition in definition_vec {
             println!(
                 "{} - {}\n\t* {}\n",
                 definition.part_of_speech,
                 definition.attribution_text.yellow().italic(),
-                definition.definition
+                format(definition.definition)
             )
         }
     }
     //println!("{} ({})\n\n{}\n\t* {}", first_res["word"], first_res["attributionText"], first_res["partOfSpeech"].to_string().italic(), first_res["text"]);
 }
 
-fn strip_quotes(string: String) -> String {
-    return string.strip_prefix("\"").unwrap().strip_suffix("\"").unwrap().to_string();
+fn strip_quotes(s: String) -> String {
+    return s
+        .strip_prefix("\"")
+        .unwrap()
+        .strip_suffix("\"")
+        .unwrap()
+        .to_string();
+}
+
+fn format(s: String) -> String {
+    let loc1 = s.find("<em>");
+    let loc2 = s.rfind("</em>");
+    let stripped = match loc1 {
+        Some(_) => s.replace("<em>", "").replace("</em>", ""),
+        None => return s,
+    };
+    let substr = stripped.substring(loc1.unwrap(), loc2.unwrap()).italic();
+    return format!(
+        "{}{}{}",
+        stripped.get(0..loc1.unwrap()).unwrap(),
+        substr,
+        stripped.get(loc2.unwrap()..).unwrap()
+    );
 }
 
 fn print_usage() {
