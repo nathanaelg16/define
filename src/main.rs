@@ -9,13 +9,14 @@ use std::result::Result;
 use substring::Substring;
 use text_colorizer::*;
 
-const API_URL: &str = "http://api.wordnik.com/v4/word.json";
+// todo implement Audio
+
+const API_URL: &str = "https://api.wordnik.com/v4/word.json";
 
 fn main() -> Result<(), confy::ConfyError> {
-    let config: Config = confy::load("define")?;
+    let config: Config = confy::load("define", None)?;
     let args = parse_args();
     let client = Client::new();
-    //println!("{:?}\n\n", args);
     define(
         &args.word,
         &args.limit,
@@ -127,7 +128,7 @@ fn define(
             part_of_speech: strip_quotes(res["partOfSpeech"].to_string()),
             attribution_text: strip_quotes(res["attributionText"].to_string()),
             dictionary: strip_quotes(res["sourceDictionary"].to_string()),
-            examples: examples,
+            examples,
         };
         if definitions.contains_key(&word) {
             let vector = definitions.get_mut(&word).unwrap();
@@ -154,7 +155,6 @@ fn define(
             )
         }
     }
-    //println!("{} ({})\n\n{}\n\t* {}", first_res["word"], first_res["attributionText"], first_res["partOfSpeech"].to_string().italic(), first_res["text"]);
 }
 
 fn strip_quotes(s: String) -> String {
@@ -194,17 +194,16 @@ Options:
     -A --audio                               Request an audio pronunciation of the word
     -R --includeRelated                      Request related words with definitions
     -C --useCanonical                        Tries to return the correct word root (e.g. 'cats' -> 'cat')
-    -E --etymology                           Request etymology data
     -X --examples                            Request examples for the word
     -F --frequency                  [...]    Request word usage over time
     -H --hyphenation                         Request syllable information for the word
     -P --pronunciation              [...]    Request text pronunciation for the word with the specified pronunciation type
     -T --thesaurus                           Request synonym and antonym information for the word
     -U --usage --help                        Display this usage guide
-";
+"; // todo add etymology once API supports it
 
     eprintln!(
-        "{} - look up words in the dictionary of your choice",
+        "{} - CLI dictionary, powered by Wordnik",
         "define".green()
     );
     eprintln!("{}", usage)
@@ -367,10 +366,10 @@ fn parse_args() -> Arguments {
                             use_canonical = true;
                             current_op = None;
                         }
-                        "e" | "etymology" => {
-                            etymologies = true;
-                            current_op = None;
-                        }
+                        // "e" | "etymology" => {
+                        //     etymologies = true;
+                        //     current_op = None;
+                        // }
                         "x" | "examples" => {
                             examples = true;
                             current_op = None;
@@ -411,22 +410,22 @@ fn parse_args() -> Arguments {
     }
 
     Arguments {
-        word: word,
-        part_of_speech: part_of_speech,
-        dictionaries: dictionaries,
-        limit: limit,
-        audio: audio,
-        include_related: include_related,
-        use_canonical: use_canonical,
-        etymologies: etymologies,
-        examples: examples,
-        frequency: frequency,
-        start_year: start_year,
-        end_year: end_year,
-        hyphenation: hyphenation,
-        pronunciation: pronunciation,
-        type_format: type_format,
-        thesaurus: thesaurus,
+        word,
+        part_of_speech,
+        dictionaries,
+        limit,
+        audio,
+        include_related,
+        use_canonical,
+        etymologies,
+        examples,
+        frequency,
+        start_year,
+        end_year,
+        hyphenation,
+        pronunciation,
+        type_format,
+        thesaurus,
     }
 }
 
@@ -459,7 +458,7 @@ struct Definition {
     examples: Vec<String>,
 }
 
-impl ::std::default::Default for Config {
+impl Default for Config {
     fn default() -> Self {
         Self { api_key: "".into() }
     }
