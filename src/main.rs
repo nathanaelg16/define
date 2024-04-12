@@ -226,9 +226,9 @@ fn format(s: String) -> String {
     let substr = stripped.substring(loc1.unwrap(), loc2.unwrap()).italic();
     return format!(
         "{}{}{}",
-        stripped.get(0..loc1.unwrap()).unwrap(),
+        stripped.get(0..loc1.unwrap()).unwrap_or(""),
         substr,
-        stripped.get(loc2.unwrap()..).unwrap()
+        stripped.get(loc2.unwrap()..).unwrap_or("")
     );
 }
 
