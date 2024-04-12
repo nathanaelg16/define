@@ -1,15 +1,14 @@
 use reqwest::blocking::Client;
-use reqwest::blocking::Request;
-use reqwest::blocking::Response;
 use serde::Deserialize;
 use serde::Serialize;
 use std::collections::HashMap;
 use std::env;
 use std::result::Result;
+use std::io::Write;
+use awedio::Sound;
 use substring::Substring;
 use text_colorizer::*;
-
-// todo implement Audio
+use tempfile::Builder;
 
 const API_URL: &str = "https://api.wordnik.com/v4/word.json";
 
@@ -27,7 +26,58 @@ fn main() -> Result<(), confy::ConfyError> {
         &client,
         &config.api_key,
     );
+
+    if args.audio {
+        audio(&args.word, &args.use_canonical, None, &client, &config.api_key);
+    }
+
     Ok(())
+}
+
+fn audio(
+    word: &String,
+    use_canonical: &bool,
+    limit: Option<u8>,
+    client: &Client,
+    api_key: &String,
+) {
+    match client
+        .get(format!("{}/{}/{}", API_URL, word, "audio"))
+        .query(&[
+            ("api_key", api_key),
+            ("useCanonical", &(use_canonical.to_string())),
+        ])
+        .query(&[("limit", limit.unwrap_or(5))])
+        .send()
+    {
+        Ok(response) => {
+            match response.json::<serde_json::Value>().unwrap().as_array().unwrap().get(0) {
+                Some(value) => {
+                    let mut bytes = client
+                        .get(format!("{}", strip_quotes(value["fileUrl"].to_string())))
+                        .send()
+                        .unwrap()
+                        .bytes()
+                        .unwrap();
+
+                    let mut tmp_file = Builder::new()
+                        .suffix(".mp3")
+                        .tempfile()
+                        .unwrap();
+                    tmp_file.write_all(&bytes);
+                    tmp_file.flush();
+                    let path = tmp_file.into_temp_path();
+                    let (mut manager, backend) = awedio::start().unwrap();
+                    let (sound, notifier) =
+                        awedio::sounds::open_file(path).unwrap().with_completion_notifier();
+                    manager.play(Box::new(sound));
+                    let _ = notifier.recv();
+                },
+                None => { /* do nothing */ }
+            }
+        },
+        Err(_) => { /* do nothing */ }
+    };
 }
 
 fn pronunciations(
@@ -39,7 +89,7 @@ fn pronunciations(
     client: &Client,
     api_key: &String,
 ) -> Option<String> {
-    match client
+    return match client
         .get(format!("{}/{}/{}", API_URL, word, "pronunciations"))
         .query(&[
             ("api_key", api_key),
@@ -51,7 +101,7 @@ fn pronunciations(
         .send()
     {
         Ok(response) => {
-            return Some(strip_quotes(
+            Some(strip_quotes(
                 response
                     .json::<serde_json::Value>()
                     .unwrap()
@@ -60,7 +110,7 @@ fn pronunciations(
                     .to_string(),
             ))
         }
-        Err(_) => return None,
+        Err(_) => None,
     };
 }
 
