@@ -15,7 +15,7 @@ Powered by [Wordnik](https://wordnik.com) and written entirely in Rust.
     cargo install --path .
     ```
 1. Obtain a [free API key](https://developer.wordnik.com/) from Wordnik.
-1. Run the command and paste the API key when prompted, or supply it via the -apiKey flag, i.e. `define -apiKey <api_key>`.
+1. Run the command and paste the API key when prompted, or supply it via the `-apiKey` flag.
    
    ![Screenshot_20240531_135320](https://github.com/nathanaelg16/define/assets/12057936/53745ea8-54d3-4d55-a5f3-a8dc7a34548b)
 
@@ -23,7 +23,8 @@ Powered by [Wordnik](https://wordnik.com) and written entirely in Rust.
 ## Usage
 
 ```
-define <word> [OPTIONS]
+define -apiKey <api_key>            Stores the API KEY
+define <word> [OPTIONS]             Performs a dictionary lookup for the word with the specified options
 
 Options:
     -D --dictionary --dictionaries  [...]    Source dictionaries to return definitions from, separated by a space
