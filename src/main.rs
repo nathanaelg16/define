@@ -13,8 +13,13 @@ use tempfile::Builder;
 const API_URL: &str = "https://api.wordnik.com/v4/word.json";
 
 fn main() -> Result<(), confy::ConfyError> {
-    let config: Config = confy::load("define", None)?;
-    let args = parse_args();
+    let mut config: Config = confy::load("define", None)?;
+
+    if config.api_key.len() == 0 {
+        prompt_for_api_key(&mut config);
+    }
+    
+    let args = parse_args(&mut config);
     let client = Client::new();
     define(
         &args.word,
@@ -34,6 +39,29 @@ fn main() -> Result<(), confy::ConfyError> {
     Ok(())
 }
 
+fn prompt_for_api_key(config: &mut Config) {
+    print!("{}", "Please enter your Wordnik API Key: ".yellow());
+    let _ = std::io::stdout().flush();
+    let mut buffer = String::new();
+    let stdin = std::io::stdin();
+    match stdin.read_line(&mut buffer) {
+        Ok(_) => {
+            save_api_key(config, buffer.trim().to_string())
+        },
+        Err(error) => panic!("Unable to read from stdin. Error: {}", error)
+    }
+}
+
+fn save_api_key(config: &mut Config, api_key: String) {
+    config.api_key = api_key;
+    match confy::store("define", None, config) {
+        Ok(_) => {},
+        Err(error) => {
+            panic!("Unable to save api key. Error: {}", error)
+        }
+    }
+}
+
 fn audio(
     word: &String,
     use_canonical: &bool,
@@ -51,33 +79,48 @@ fn audio(
         .send()
     {
         Ok(response) => {
-            match response.json::<serde_json::Value>().unwrap().as_array().unwrap().get(0) {
-                Some(value) => {
-                    let mut bytes = client
-                        .get(format!("{}", strip_quotes(value["fileUrl"].to_string())))
-                        .send()
-                        .unwrap()
-                        .bytes()
-                        .unwrap();
-
-                    let mut tmp_file = Builder::new()
-                        .suffix(".mp3")
-                        .tempfile()
-                        .unwrap();
-                    tmp_file.write_all(&bytes);
-                    tmp_file.flush();
-                    let path = tmp_file.into_temp_path();
-                    let (mut manager, backend) = awedio::start().unwrap();
-                    let (sound, notifier) =
-                        awedio::sounds::open_file(path).unwrap().with_completion_notifier();
-                    manager.play(Box::new(sound));
-                    let _ = notifier.recv();
+            let response_value = response.json::<serde_json::Value>();
+            match response_value {
+                Ok(value) => {
+                    match value.as_array() {
+                        Some(urls) => {
+                            if urls.len() > 0 {
+                                let _ = play_audio(&client, strip_quotes(urls[0]["fileUrl"].to_string()));
+                            }
+                        },
+                        None => { /* do nothing */ }
+                    }
                 },
-                None => { /* do nothing */ }
+                Err(_) => { /* do nothing */ }
             }
         },
         Err(_) => { /* do nothing */ }
     };
+}
+
+fn play_audio(client: &Client, url: String) -> Result<(), ()> {
+    let bytes = client
+        .get(format!("{}", url))
+        .send()
+        .expect("Failed to fetch audio")
+        .bytes()
+        .expect("Failed to play audio");
+
+    let mut tmp_file = Builder::new()
+        .suffix(".mp3")
+        .tempfile()
+        .expect("Failed to play audio");
+
+    let _ = tmp_file.write_all(&bytes);
+    let _ = tmp_file.flush();
+
+    let path = tmp_file.into_temp_path();
+    let (mut manager, _backend) = awedio::start().expect("Failed to play audio");
+    let (sound, notifier) =
+        awedio::sounds::open_file(path).expect("Failed to play audio").with_completion_notifier();
+    manager.play(Box::new(sound));
+    let _ = notifier.recv();
+    Ok(())
 }
 
 fn pronunciations(
@@ -101,14 +144,14 @@ fn pronunciations(
         .send()
     {
         Ok(response) => {
-            Some(strip_quotes(
-                response
-                    .json::<serde_json::Value>()
-                    .unwrap()
-                    .as_array()
-                    .unwrap()[0]["raw"]
-                    .to_string(),
-            ))
+            let response_value = response.json::<serde_json::Value>();
+            match response_value {
+                Ok(value) => {
+                    let pronunciation = value.as_array()?.get(0)?.get("raw")?;
+                    Some(strip_quotes(pronunciation.to_string()))
+                },
+                Err(_) => None,
+            }
         }
         Err(_) => None,
     };
@@ -156,7 +199,9 @@ fn define(
             std::process::exit(1);
         }
     };
-    let res_arr = res.as_array().unwrap();
+
+    let empty_vec = Vec::<serde_json::Value>::new();
+    let res_arr = res.as_array().unwrap_or(&empty_vec);
     let dictionary = String::from("ahd-5");
     let pronunciation = pronunciations(
         &word,
@@ -208,12 +253,9 @@ fn define(
 }
 
 fn strip_quotes(s: String) -> String {
-    return s
-        .strip_prefix("\"")
-        .unwrap()
-        .strip_suffix("\"")
-        .unwrap()
-        .to_string();
+    let mut stripped = s.strip_prefix("\"").unwrap_or(&s);
+    stripped = stripped.strip_suffix("\"").unwrap_or(&stripped);
+    return stripped.to_string();
 }
 
 fn format(s: String) -> String {
@@ -259,7 +301,7 @@ Options:
     eprintln!("{}", usage)
 }
 
-fn parse_args() -> Arguments {
+fn parse_args(config: &mut Config) -> Arguments {
     let args: Vec<String> = env::args().skip(1).collect();
 
     if args.len() == 0 {
@@ -273,11 +315,19 @@ fn parse_args() -> Arguments {
 
     let word = args[0].clone();
     if word.contains('-') {
-        print_usage();
-        eprintln!(
-            "{} the first argument must be a word",
-            "Error:".red().bold()
-        );
+        match word.trim_start_matches('-').to_lowercase().as_str() {
+            "apikey" | "api_key" => {
+                save_api_key(config, args[1].clone());
+                println!("API Key has been saved.");
+            }
+            _ => {
+                print_usage();
+                eprintln!(
+                    "{} the first argument must be a word",
+                    "Error:".red().bold()
+                );
+            }
+        }
         std::process::exit(1);
     }
 
