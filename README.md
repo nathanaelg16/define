@@ -1,16 +1,24 @@
 # DEFINE
 
-Look up word definitions straight from your command line!
+Look up word definitions straight from your command line!  
+
+Powered by [Wordnik](https://wordnik.com) and written entirely in Rust.
 
 ![define](https://github.com/nathanaelg16/define/assets/12057936/1c88aa86-f118-4215-bdc6-5ba13f307131)
 
 
 ## Installation
-```bash
-git clone "https://github.com/nathanaelg16/define.git"
-cd define
-cargo install --path .
-```
+1. Clone the repo and install using `cargo`.
+    ```bash
+    git clone "https://github.com/nathanaelg16/define.git"
+    cd define
+    cargo install --path .
+    ```
+1. Obtain a [free API key](https://developer.wordnik.com/) from Wordnik.
+1. Run the command and paste the API key when prompted, or supply it via the -apiKey flag, i.e. `define -apiKey <api_key>`.
+   
+   ![Screenshot_20240531_135320](https://github.com/nathanaelg16/define/assets/12057936/53745ea8-54d3-4d55-a5f3-a8dc7a34548b)
+
 
 ## Usage
 
