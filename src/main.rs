@@ -6,6 +6,7 @@ use std::env;
 use std::result::Result;
 use std::io::Write;
 use awedio::Sound;
+use serde_json::Value;
 use substring::Substring;
 use text_colorizer::*;
 use tempfile::Builder;
@@ -215,24 +216,32 @@ fn define(
 
     let mut definitions: HashMap<String, Vec<Definition>> = HashMap::new();
     for res in res_arr {
-        let examples = Vec::new();
-        let word = strip_quotes(res["word"].to_string());
-        let definition = Definition {
-            word: word.clone(),
-            definition: strip_quotes(res["text"].to_string()),
-            part_of_speech: strip_quotes(res["partOfSpeech"].to_string()),
-            attribution_text: strip_quotes(res["attributionText"].to_string()),
-            dictionary: strip_quotes(res["sourceDictionary"].to_string()),
-            examples,
-        };
-        if definitions.contains_key(&word) {
-            let vector = definitions.get_mut(&word).unwrap();
-            vector.push(definition);
-        } else {
-            let mut vector: Vec<Definition> = Vec::new();
-            vector.push(definition);
-            definitions.insert(word, vector);
+        let word_value = &res["word"];
+        if word_value != &Value::Null {
+            let examples = Vec::new();
+            let word = strip_quotes(word_value.to_string());
+            let definition = Definition {
+                word: word.clone(),
+                definition: strip_quotes(res["text"].to_string()),
+                part_of_speech: strip_quotes(res["partOfSpeech"].to_string()),
+                attribution_text: strip_quotes(res["attributionText"].to_string()),
+                dictionary: strip_quotes(res["sourceDictionary"].to_string()),
+                examples,
+            };
+            if definitions.contains_key(&word) {
+                let vector = definitions.get_mut(&word).unwrap();
+                vector.push(definition);
+            } else {
+                let mut vector: Vec<Definition> = Vec::new();
+                vector.push(definition);
+                definitions.insert(word, vector);
+            }
         }
+    }
+
+    if definitions.len() == 0 {
+        println!("No definitions found for `{}`.", word);
+        std::process::exit(0);
     }
 
     for (word, definition_vec) in definitions {
@@ -507,6 +516,7 @@ fn parse_args(config: &mut Config) -> Arguments {
 
     if dictionaries.len() == 0 {
         dictionaries.push(String::from("ahd-5"));
+        dictionaries.push(String::from("century"));
     }
 
     Arguments {
